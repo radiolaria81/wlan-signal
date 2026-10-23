@@ -129,8 +129,9 @@ class MainActivity : Activity() {
         wm = applicationContext.getSystemService(WifiManager::class.java)
         cm = getSystemService(ConnectivityManager::class.java)
         loadColors()
-        setupWindow()
         buildUi()
+        // Erst nach setContentView: vorher gibt es keine DecorView (Android 16: NPE in getInsetsController)
+        setupWindow()
         // Beim Herumlaufen und Messen soll das Display anbleiben
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!hasLocationPermission()) askPermission()
