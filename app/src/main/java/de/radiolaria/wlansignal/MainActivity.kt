@@ -71,6 +71,46 @@ class MainActivity : Activity() {
     private lateinit var tvMax: TextView
     private val details = LinkedHashMap<String, TextView>()
 
+    private var crashMode = false
+
+    /** Zeigt den Stacktrace des letzten Absturzes zum Kopieren. Bewusst minimal, ohne den Rest der Oberfläche. */
+    private fun showCrashScreen(trace: String) {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad * 3, pad, pad * 3)
+        }
+        col.addView(TextView(this).apply {
+            text = "Die App ist beim letzten Mal abgestürzt. Bitte den Text kopieren und weitergeben."
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        })
+        col.addView(Button(this).apply {
+            text = "Fehlertext kopieren"
+            isAllCaps = false
+            setOnClickListener {
+                val clip = getSystemService(android.content.ClipboardManager::class.java)
+                clip?.setPrimaryClip(android.content.ClipData.newPlainText("WLAN-Signal Absturz", trace))
+                android.widget.Toast.makeText(this@MainActivity, "Kopiert", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        })
+        col.addView(Button(this).apply {
+            text = "Löschen und App neu starten"
+            isAllCaps = false
+            setOnClickListener {
+                App.crashFile(this@MainActivity).delete()
+                recreate()
+            }
+        })
+        col.addView(TextView(this).apply {
+            text = trace
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            typeface = Typeface.MONOSPACE
+            setTextIsSelectable(true)
+            setPadding(0, pad, 0, 0)
+        })
+        setContentView(ScrollView(this).apply { addView(col) })
+    }
+
     private val tick = object : Runnable {
         override fun run() {
             update()
@@ -80,6 +120,12 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val crash = App.crashFile(this)
+        if (crash.exists()) {
+            crashMode = true
+            showCrashScreen(runCatching { crash.readText() }.getOrDefault("(nicht lesbar)"))
+            return
+        }
         wm = applicationContext.getSystemService(WifiManager::class.java)
         cm = getSystemService(ConnectivityManager::class.java)
         loadColors()
@@ -92,11 +138,13 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        if (crashMode) return
         registerCallback()
         handler.post(tick)
     }
 
     override fun onStop() {
+        if (crashMode) return super.onStop()
         handler.removeCallbacks(tick)
         unregisterCallback()
         super.onStop()
